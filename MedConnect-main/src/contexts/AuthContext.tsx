@@ -24,7 +24,7 @@ function useAuth() {
 
 // Use React.memo for better Fast Refresh compatibility
 const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) => {
-  const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 

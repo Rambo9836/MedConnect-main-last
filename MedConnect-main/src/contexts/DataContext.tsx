@@ -118,7 +118,7 @@ interface DataProviderProps {
 const DataProvider = React.memo(({ children }: DataProviderProps) => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const API_BASE = `${window.location.protocol}//${window.location.hostname}:8000`;
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
   
   // Clinical Trials
   const [clinicalTrials, setClinicalTrials] = useState<ClinicalTrial[]>([]);

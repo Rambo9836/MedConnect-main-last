@@ -12,6 +12,7 @@ import { useData } from '../contexts/DataContext';
 
 const ProfilePage: React.FC = () => {
   const { user } = useAuth();
+  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
   const { 
     profile, 
     updateProfile,
@@ -77,7 +78,7 @@ const ProfilePage: React.FC = () => {
 
   const fetchProfileDirectly = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/profile/', {
+      const response = await fetch(`${API_BASE}/api/profile/`, {
         credentials: 'include'
       });
       
@@ -123,7 +124,7 @@ const ProfilePage: React.FC = () => {
       const formData = new FormData();
       formData.append('profile_picture', file);
 
-      const response = await fetch('http://127.0.0.1:8000/api/profile/upload-picture/', {
+      const response = await fetch(`${API_BASE}/api/profile/upload-picture/`, {
         method: 'POST',
         credentials: 'include',
         body: formData
@@ -244,7 +245,7 @@ const ProfilePage: React.FC = () => {
               <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200">
                 {profile?.profile_picture ? (
                   <img 
-                    src={/^https?:\/\//.test(profile.profile_picture) ? profile.profile_picture : `${window.location.protocol}//${window.location.hostname}:8000${profile.profile_picture}`}
+                    src={/^https?:\/\//.test(profile.profile_picture) ? profile.profile_picture : `${API_BASE}${profile.profile_picture}`}
                     alt="Profile" 
                     className="w-full h-full object-cover"
                   />
