@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "shell",
+			"label": "Delete db.sqlite3",
+			"command": "del \"BACKEND\\db.sqlite3\"",
+			"group": "build",
+			"isBackground": false
+		}
+	]
+}

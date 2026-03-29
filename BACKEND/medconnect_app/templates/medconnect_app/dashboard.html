@@ -1,0 +1,24 @@
+{% extends 'medconnect_app/base.html' %}
+{% block content %}
+<div class="container mt-5">
+    <h2>Dashboard</h2>
+    <p>Welcome, {{ profile.user.get_full_name }} ({{ profile.role|title }})</p>
+    {% if profile.role == 'patient' and patient_profile %}
+        <h4>Patient Information</h4>
+        <ul>
+            <li>Date of Birth: {{ patient_profile.date_of_birth }}</li>
+            <li>Gender: {{ patient_profile.gender }}</li>
+            <li>Cancer Type: {{ patient_profile.cancer_type }}</li>
+            <li>Phone Number: {{ patient_profile.phone_number }}</li>
+        </ul>
+    {% elif profile.role == 'researcher' and researcher_profile %}
+        <h4>Researcher Information</h4>
+        <ul>
+            <li>Title: {{ researcher_profile.title }}</li>
+            <li>Institution: {{ researcher_profile.institution }}</li>
+            <li>Specialization: {{ researcher_profile.specialization }}</li>
+            <li>Phone Number: {{ researcher_profile.phone_number }}</li>
+        </ul>
+    {% endif %}
+</div>
+{% endblock %} 
