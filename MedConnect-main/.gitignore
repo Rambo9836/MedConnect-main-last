@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.sqlite3
+*.log
+
+# Virtual environments
+venv/
+BACKEND/venv/
+BACKEND/BACKEND_ENV/
+
+# Node
+node_modules/
+MedConnect-main/node_modules/
+
+# Build output
+dist/
+MedConnect-main/dist/
+BACKEND/staticfiles/
+
+# Environment and secrets
+.env
+.env.*
+!.env.prod.example
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

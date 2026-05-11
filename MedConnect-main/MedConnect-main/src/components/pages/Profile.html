@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediShare - Patient Profile</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #2d3748;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #4299e1 0%, #667eea 100%);
+            color: white;
+            padding: 20px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .header-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Profile Section */
+        .profile-section {
+            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
+            padding: 40px 30px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .profile-content {
+            display: flex;
+            gap: 40px;
+            align-items: flex-start;
+        }
+
+        .profile-avatar {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .avatar-container {
+            width: 160px;
+            height: 160px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #4299e1, #667eea);
+            padding: 4px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .avatar-container img {
+            width: 100%;
+            height: 100%;
+            border-radius: 16px;
+            object-fit: cover;
+            border: 4px solid white;
+        }
+
+        .status-indicator {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            background: #48bb78;
+            border-radius: 50%;
+            border: 3px solid white;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .patient-name {
+            font-size: 32px;
+            font-weight: 700;
+            color: #2d3748;
+            margin: 0;
+        }
+
+        .patient-id {
+            background: #4299e1;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .profile-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .action-btn {
+            padding: 12px 24px;
+            border: 2px solid #4299e1;
+            background: white;
+            color: #4299e1;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .action-btn:hover {
+            background: #4299e1;
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(66, 153, 225, 0.3);
+        }
+
+        .action-btn.primary {
+            background: #4299e1;
+            color: white;
+        }
+
+        .action-btn.primary:hover {
+            background: #3182ce;
+        }
+
+        .patient-stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 30px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4299e1;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #718096;
+            font-weight: 500;
+        }
+
+        .patient-details {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #f7fafc;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .detail-value {
+            color: #2d3748;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            padding: 30px;
+            background: white;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .quick-actions-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .quick-action-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .quick-action-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .quick-action-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .quick-action-text h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .quick-action-text p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        /* Post Creation */
+        .post-creation {
+            margin: 30px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .post-header {
+            background: linear-gradient(135deg, #4299e1 0%, #667eea 100%);
+            color: white;
+            padding: 20px 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .post-header-icon {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+
+        .post-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .post-subtitle {
+            font-size: 14px;
+            opacity: 0.8;
+        }
+
+        .post-content {
+            padding: 25px;
+        }
+
+        .post-textarea {
+            width: 100%;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            font-size: 16px;
+            font-family: inherit;
+            resize: vertical;
+            min-height: 120px;
+            outline: none;
+            transition: all 0.3s ease;
+            background: #f7fafc;
+        }
+
+        .post-textarea:focus {
+            border-color: #4299e1;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+        }
+
+        .post-options {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+        }
+
+        .upload-options {
+            display: flex;
+            gap: 12px;
+        }
+
+        .upload-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #4a5568;
+            transition: all 0.3s ease;
+        }
+
+        .upload-btn:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+            transform: translateY(-2px);
+        }
+
+        .upload-btn.prescription {
+            border-color: #f56565;
+            color: #e53e3e;
+        }
+
+        .upload-btn.prescription:hover {
+            background: #fed7d7;
+        }
+
+        .share-btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #4299e1 0%, #667eea 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(66, 153, 225, 0.3);
+        }
+
+        .share-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(66, 153, 225, 0.4);
+        }
+
+        .share-btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Content Tabs */
+        .content-tabs {
+            display: flex;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            margin: 0 30px;
+            border-radius: 12px 12px 0 0;
+            overflow: hidden;
+        }
+
+        .content-tab {
+            flex: 1;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            font-weight: 600;
+            color: #718096;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            border-bottom: 3px solid transparent;
+        }
+
+        .content-tab.active {
+            color: #4299e1;
+            background: #f7fafc;
+            border-bottom-color: #4299e1;
+        }
+
+        .content-tab:hover {
+            background: #f7fafc;
+            color: #4299e1;
+        }
+
+        /* Content Grid */
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 30px;
+            background: #f7fafc;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .content-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+            background: #edf2f7;
+            position: relative;
+        }
+
+        .card-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            color: white;
+            font-weight: 600;
+        }
+
+        .content-card:hover .card-overlay {
+            opacity: 1;
+        }
+
+        .card-content {
+            padding: 20px;
+        }
+
+        .card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .card-meta {
+            font-size: 12px;
+            color: #718096;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .card-description {
+            font-size: 14px;
+            color: #4a5568;
+            line-height: 1.5;
+        }
+
+        .prescription-label {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e53e3e;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .profile-content {
+                flex-direction: column;
+                align-items: center;
+                text-align: center;
+            }
+
+            .patient-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .content-grid {
+                grid-template-columns: 1fr;
+                padding: 20px;
+            }
+
+            .header {
+                padding: 15px 20px;
+            }
+
+            .profile-section {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <div class="logo-icon">🏥</div>
+                    <span>MediShare</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button class="header-btn">
+                    <span>🔔</span>
+                    Notifications
+                </button>
+                <button class="header-btn">
+                    <span>⚙️</span>
+                    Settings
+                </button>
+                <button class="header-btn">
+                    <span>👤</span>
+                    Profile
+                </button>
+            </div>
+        </div>
+
+        <!-- Profile Section -->
+        <div class="profile-section">
+            <div class="profile-content">
+                <div class="profile-avatar">
+                    <div class="avatar-container">
+                        <img src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=160&h=160&fit=crop&crop=face" alt="Patient Profile">
+                    </div>
+                    <div class="status-indicator"></div>
+                </div>
+                <div class="profile-info">
+                    <div class="profile-header">
+                        <h1 class="patient-name">Sarah Johnson</h1>
+                        <span class="patient-id">ID: PT-2024-001</span>
+                        <div class="profile-actions">
+                            <button class="action-btn primary">
+                                <span>📋</span>
+                                View Records
+                            </button>
+                            <button class="action-btn">
+                                <span>👨‍⚕️</span>
+                                Contact Doctor
+                            </button>
+                            <button class="action-btn">
+                                <span>📅</span>
+                                Schedule Visit
+                            </button>
+                        </div>
+                    </div>
+                    <div class="patient-stats">
+                        <div class="stat-card">
+                            <div class="stat-number">42</div>
+                            <div class="stat-label">Prescriptions</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">18</div>
+                            <div class="stat-label">Health Updates</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">7</div>
+                            <div class="stat-label">Consultations</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">3</div>
+                            <div class="stat-label">Doctors</div>
+                        </div>
+                    </div>
+                    <div class="patient-details">
+                        <div class="detail-row">
+                            <span class="detail-label">Age:</span>
+                            <span class="detail-value">34 years</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Blood Type:</span>
+                            <span class="detail-value">O+</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Primary Doctor:</span>
+                            <span class="detail-value">Dr. Michael Chen</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Last Visit:</span>
+                            <span class="detail-value">March 15, 2024</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Insurance:</span>
+                            <span class="detail-value">BlueCross BlueShield</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <h2 class="section-title">
+                <span>⚡</span>
+                Quick Actions
+            </h2>
+            <div class="quick-actions-grid">
+                <div class="quick-action-card">
+                    <div class="quick-action-icon">📸</div>
+                    <div class="quick-action-text">
+                        <h3>Upload Prescription</h3>
+                        <p>Take a photo of your prescription</p>
+                    </div>
+                </div>
+                <div class="quick-action-card">
+                    <div class="quick-action-icon">📝</div>
+                    <div class="quick-action-text">
+                        <h3>Health Update</h3>
+                        <p>Share your health status</p>
+                    </div>
+                </div>
+                <div class="quick-action-card">
+                    <div class="quick-action-icon">📊</div>
+                    <div class="quick-action-text">
+                        <h3>Track Symptoms</h3>
+                        <p>Log your daily symptoms</p>
+                    </div>
+                </div>
+                <div class="quick-action-card">
+                    <div class="quick-action-icon">💊</div>
+                    <div class="quick-action-text">
+                        <h3>Medication Reminder</h3>
+                        <p>Set up medication alerts</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Post Creation -->
+        <div class="post-creation">
+            <div class="post-header">
+                <div class="post-header-icon">📱</div>
+                <div>
+                    <div class="post-title">Share Health Update</div>
+                    <div class="post-subtitle">Keep your healthcare team informed</div>
+                </div>
+            </div>
+            <div class="post-content">
+                <textarea class="post-textarea" placeholder="How are you feeling today? Share any symptoms, medication effects, or general health updates..."></textarea>
+                <div class="post-options">
+                    <div class="upload-options">
+                        <button class="upload-btn prescription">
+                            <span>📋</span>
+                            Prescription Photo
+                        </button>
+                        <button class="upload-btn">
+                            <span>📊</span>
+                            Test Results
+                        </button>
+                        <button class="upload-btn">
+                            <span>🩺</span>
+                            Symptom Photo
+                        </button>
+                        <button class="upload-btn">
+                            <span>📍</span>
+                            Location
+                        </button>
+                    </div>
+                    <button class="share-btn" disabled>Share Update</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Tabs -->
+        <div class="content-tabs">
+            <div class="content-tab active">
+                <span>📋</span>
+                Prescriptions
+            </div>
+            <div class="content-tab">
+                <span>📝</span>
+                Health Updates
+            </div>
+            <div class="content-tab">
+                <span>📊</span>
+                Test Results
+            </div>
+            <div class="content-tab">
+                <span>🩺</span>
+                Symptoms
+            </div>
+        </div>
+
+        <!-- Content Grid -->
+        <div class="content-grid">
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=200&fit=crop" alt="Prescription" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="prescription-label">PRESCRIPTION</div>
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Blood Pressure Medication</div>
+                    <div class="card-meta">
+                        <span>Dr. Michael Chen</span>
+                        <span>March 15, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Lisinopril 10mg - Take once daily with food. Monitor blood pressure regularly.
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1576671081837-49000212a370?w=300&h=200&fit=crop" alt="Health Update" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Feeling Much Better</div>
+                    <div class="card-meta">
+                        <span>Health Update</span>
+                        <span>March 12, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Blood pressure has stabilized after starting new medication. Energy levels improving.
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1559757175-0eb30cd8c063?w=300&h=200&fit=crop" alt="Test Results" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Blood Work Results</div>
+                    <div class="card-meta">
+                        <span>Lab Report</span>
+                        <span>March 10, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Cholesterol levels within normal range. Vitamin D slightly low - supplement recommended.
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1551601651-2a8555f1a136?w=300&h=200&fit=crop" alt="Prescription" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="prescription-label">PRESCRIPTION</div>
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Vitamin D Supplement</div>
+                    <div class="card-meta">
+                        <span>Dr. Michael Chen</span>
+                        <span>March 8, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Vitamin D3 2000 IU - Take one tablet daily with breakfast for 3 months.
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=200&fit=crop" alt="Health Update" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Mild Headache Today</div>
+                    <div class="card-meta">
+                        <span>Symptom Log</span>
+                        <span>March 5, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Experiencing mild headache since morning. Could be related to weather changes.
+                    </div>
+                </div>
+            </div>
+
+            <div class="content-card">
+                <div class="card-image">
+                    <img src="https://images.unsplash.com/photo-1559757148-5c350d0d3c56?w=300&h=200&fit=crop" alt="Prescription" style="width: 100%; height: 100%; object-fit: cover;">
+                    <div class="prescription-label">PRESCRIPTION</div>
+                    <div class="card-overlay">
+                        <span>View Details</span>
+                    </div>
+                </div>
+                <div class="card-content">
+                    <div class="card-title">Allergy Medication</div>
+                    <div class="card-meta">
+                        <span>Dr. Sarah Williams</span>
+                        <span>March 1, 2024</span>
+                    </div>
+                    <div class="card-description">
+                        Cetirizine 10mg - Take as needed for seasonal allergies. Maximum one tablet per day.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Enable/disable share button based on textarea content
+        const textarea = document.querySelector('.post-textarea');
+        const shareBtn = document.querySelector('.share-btn');
+
+        textarea.addEventListener('input', function() {
+            if (this.value.trim().length > 0) {
+                shareBtn.disabled = false;
+                shareBtn.style.background = 'linear-gradient(135deg, #4299e1 0%, #667eea 100%)';
+            } else {
+                shareBtn.disabled = true;
+                shareBtn.style.background = '#cbd5e0';
+            }
+        });
+
+        // Tab switching functionality
+        const tabs = document.querySelectorAll('.content-tab');
+        tabs
+    </script>
+</body>
+</html>

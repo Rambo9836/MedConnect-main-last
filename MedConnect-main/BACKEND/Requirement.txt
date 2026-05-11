@@ -1,0 +1,5 @@
+Django>=5.2
+django-cors-headers>=4.4,<5
+gunicorn>=22,<23
+psycopg2-binary>=2.9,<3
+Pillow>=10,<12
