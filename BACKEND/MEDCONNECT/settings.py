@@ -9,37 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
-INSTALLED_APPS = [
-    ...
-    "corsheaders",
-    ...
-]
 
-MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",  # MUST be at the top
-    "django.middleware.security.SecurityMiddleware",
-    'whitenoise.middleware.WhiteNoiseMiddleware',
-    "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    ...
-]
-
-# Allow your frontend origins
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",       # Vite dev server
-    "http://localhost:3000",       # CRA dev server
-    "https://yourdomain.com",      # Your GoDaddy domain (add later)
-    "https://www.yourdomain.com",
-]
-
-# For production security
-ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    ".onrender.com",              # Allows any Render subdomain
-    "yourdomain.com",
-    "www.yourdomain.com",
-]
 import os
 from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -111,6 +81,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
