@@ -398,3 +398,48 @@ class ContactRequest(models.Model):
     
     def __str__(self):
         return f"Contact request from {self.researcher.user.username} to {self.patient.user.username}"
+
+
+class LoginEmailOTP(models.Model):
+    """One-time email code used for passwordless login."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='login_otps')
+    code = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"OTP for {self.user.email} (used={self.is_used})"
+
+
+class SignupEmailOTP(models.Model):
+    """One-time code for verifying email before account creation."""
+    email = models.EmailField()
+    code = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Signup OTP for {self.email} (used={self.is_used})"
+
+
+class PasswordResetEmailOTP(models.Model):
+    """One-time email code used to reset a user's password."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_otps')
+    code = models.CharField(max_length=6)
+    is_used = models.BooleanField(default=False)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Password reset OTP for {self.user.email} (used={self.is_used})"

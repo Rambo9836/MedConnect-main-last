@@ -4,10 +4,21 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.views.decorators.http import require_http_methods
 from django.db.models import Q
+from django.core.mail import send_mail
+from django.conf import settings
+from django.core.cache import cache
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
+from django.utils import timezone
 from functools import wraps
 import json
+import random
+import logging
+import smtplib
 from datetime import datetime, timedelta
-from .models import Profile, PatientProfile, ResearcherProfile, Appointment, Community, CommunityMembership, CommunityPost, PostAttachment, PostLike, PostComment, ResearchStudy, StudyParticipation, MedicalRecord, VitalSigns, Medication, Immunization, Allergy, ContactRequest
+from .models import Profile, PatientProfile, ResearcherProfile, Appointment, Community, CommunityMembership, CommunityPost, PostAttachment, PostLike, PostComment, ResearchStudy, StudyParticipation, MedicalRecord, VitalSigns, Medication, Immunization, Allergy, ContactRequest, LoginEmailOTP, SignupEmailOTP, PasswordResetEmailOTP
+
+logger = logging.getLogger(__name__)
 
 def require_auth(view_func):
     """Custom decorator to check authentication"""
@@ -265,10 +276,18 @@ def api_community_posts(request, community_id):
     """API endpoint to get posts for a community"""
     try:
         community = Community.objects.get(id=community_id)
+        user_profile = request.user.profile
+
+        # Enforce join-before-view (platform rule)
+        if not CommunityMembership.objects.filter(member=user_profile, community=community).exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'You must join this community to view posts'
+            }, status=403)
+
         posts = CommunityPost.objects.filter(community=community)
         
         posts_data = []
-        user_profile = request.user.profile
         
         for post in posts:
             # Check if user liked this post
@@ -490,6 +509,13 @@ def api_like_post(request, post_id):
     try:
         user_profile = request.user.profile
         post = CommunityPost.objects.get(id=post_id)
+
+        # Must be a community member to interact
+        if not CommunityMembership.objects.filter(member=user_profile, community=post.community).exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'You must join this community to like posts'
+            }, status=403)
         
         # Check if already liked
         if PostLike.objects.filter(post=post, user=user_profile).exists():
@@ -499,12 +525,11 @@ def api_like_post(request, post_id):
             }, status=400)
         
         PostLike.objects.create(post=post, user=user_profile)
-        post.like_count += 1
-        post.save()
         
         return JsonResponse({
             'success': True,
-            'message': 'Post liked successfully'
+            'message': 'Post liked successfully',
+            'likes': post.like_count
         })
         
     except CommunityPost.DoesNotExist:
@@ -526,6 +551,13 @@ def api_unlike_post(request, post_id):
     try:
         user_profile = request.user.profile
         post = CommunityPost.objects.get(id=post_id)
+
+        # Must be a community member to interact
+        if not CommunityMembership.objects.filter(member=user_profile, community=post.community).exists():
+            return JsonResponse({
+                'success': False,
+                'message': 'You must join this community to unlike posts'
+            }, status=403)
         
         # Check if liked
         like = PostLike.objects.filter(post=post, user=user_profile).first()
@@ -536,12 +568,11 @@ def api_unlike_post(request, post_id):
             }, status=400)
         
         like.delete()
-        post.like_count -= 1
-        post.save()
         
         return JsonResponse({
             'success': True,
-            'message': 'Post unliked successfully'
+            'message': 'Post unliked successfully',
+            'likes': post.like_count
         })
         
     except CommunityPost.DoesNotExist:
@@ -1720,12 +1751,17 @@ def api_create_community(request):
     """API endpoint to create a new community"""
     try:
         data = json.loads(request.body)
+
+        # Accept both frontend payload styles: isPrivate (camel) and is_private (snake)
+        is_private = data.get('isPrivate', None)
+        if is_private is None:
+            is_private = data.get('is_private', False)
         
         community = Community.objects.create(
             name=data.get('name'),
             description=data.get('description'),
             category=data.get('category', 'General'),
-            is_private=data.get('isPrivate', False),
+            is_private=bool(is_private),
             tags=data.get('tags', []),
             created_by=request.user.profile
         )
@@ -2278,6 +2314,423 @@ def api_login(request):
             'message': str(e)
         }, status=500)
 
+
+def _serialize_user_for_auth(user):
+    profile = user.profile
+    user_data = {
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'role': profile.role,
+        'is_authenticated': True
+    }
+
+    if profile.role == 'patient':
+        try:
+            patient_profile = PatientProfile.objects.get(profile=profile)
+            user_data['patient_profile'] = {
+                'date_of_birth': patient_profile.date_of_birth.isoformat(),
+                'gender': patient_profile.gender,
+                'cancer_type': patient_profile.cancer_type,
+                'phone_number': patient_profile.phone_number
+            }
+        except PatientProfile.DoesNotExist:
+            pass
+    elif profile.role == 'researcher':
+        try:
+            researcher_profile = ResearcherProfile.objects.get(profile=profile)
+            user_data['researcher_profile'] = {
+                'title': researcher_profile.title,
+                'institution': researcher_profile.institution,
+                'specialization': researcher_profile.specialization,
+                'phone_number': researcher_profile.phone_number
+            }
+        except ResearcherProfile.DoesNotExist:
+            pass
+
+    return user_data
+
+
+def _get_client_ip(request):
+    x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded_for:
+        return x_forwarded_for.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', 'unknown')
+
+
+def _validate_signup_code(email, code):
+    otp = SignupEmailOTP.objects.filter(
+        email__iexact=email,
+        code=code,
+        is_used=False,
+        expires_at__gt=timezone.now()
+    ).first()
+    if not otp:
+        return False
+    otp.is_used = True
+    otp.save(update_fields=['is_used'])
+    return True
+
+
+def _validate_password_reset_code(user, code):
+    otp = PasswordResetEmailOTP.objects.filter(
+        user=user,
+        code=code,
+        is_used=False,
+        expires_at__gt=timezone.now()
+    ).first()
+    if not otp:
+        return False
+    otp.is_used = True
+    otp.save(update_fields=['is_used'])
+    return True
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_request_signup_code(request):
+    """Send an email verification code for new account signup."""
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return JsonResponse({'success': False, 'message': 'Email is required'}, status=400)
+
+        if User.objects.filter(email__iexact=email).exists():
+            return JsonResponse({'success': False, 'message': 'Email already exists'}, status=400)
+
+        client_ip = _get_client_ip(request)
+        ip_limit_key = f"otp:signup:req:ip:{client_ip}"
+        email_limit_key = f"otp:signup:req:email:{email}"
+        ip_count = cache.get(ip_limit_key, 0)
+        email_count = cache.get(email_limit_key, 0)
+        if ip_count >= settings.OTP_REQUESTS_PER_HOUR or email_count >= settings.OTP_REQUESTS_PER_HOUR:
+            return JsonResponse({
+                'success': False,
+                'message': 'Too many code requests. Please try again later.'
+            }, status=429)
+
+        SignupEmailOTP.objects.filter(email__iexact=email, is_used=False).update(is_used=True)
+        code = f"{random.randint(0, 999999):06d}"
+        expires_at = timezone.now() + timedelta(minutes=settings.OTP_CODE_EXPIRY_MINUTES)
+        SignupEmailOTP.objects.create(email=email, code=code, expires_at=expires_at)
+
+        try:
+            send_mail(
+                subject='Your MedConnect signup verification code',
+                message=(
+                    f'Your MedConnect signup code is: {code}\n\n'
+                    f'This code expires in {settings.OTP_CODE_EXPIRY_MINUTES} minutes.'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False,
+            )
+        except smtplib.SMTPException:
+            logger.exception("SMTP error while sending signup code", extra={"email": email})
+            return JsonResponse({
+                'success': False,
+                'message': 'Email service is not configured. Ask an admin to configure SMTP credentials.'
+            }, status=503)
+
+        cache.set(ip_limit_key, ip_count + 1, timeout=3600)
+        cache.set(email_limit_key, email_count + 1, timeout=3600)
+        return JsonResponse({'success': True, 'message': 'Verification code sent'})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_request_login_code(request):
+    """Send a one-time login code to an existing user's email."""
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+
+        if not email:
+            return JsonResponse({
+                'success': False,
+                'message': 'Email is required'
+            }, status=400)
+
+        client_ip = _get_client_ip(request)
+        ip_limit_key = f"otp:req:ip:{client_ip}"
+        email_limit_key = f"otp:req:email:{email}"
+        ip_count = cache.get(ip_limit_key, 0)
+        email_count = cache.get(email_limit_key, 0)
+        if ip_count >= settings.OTP_REQUESTS_PER_HOUR or email_count >= settings.OTP_REQUESTS_PER_HOUR:
+            logger.warning("OTP request throttled", extra={"email": email, "ip": client_ip})
+            return JsonResponse({
+                'success': False,
+                'message': 'Too many code requests. Please try again later.'
+            }, status=429)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            # Avoid leaking which emails exist in the system.
+            return JsonResponse({
+                'success': True,
+                'message': 'If an account exists, a login code has been sent'
+            })
+
+        # Invalidate previous unused codes for this user.
+        LoginEmailOTP.objects.filter(user=user, is_used=False).update(is_used=True)
+
+        code = f"{random.randint(0, 999999):06d}"
+        expires_at = timezone.now() + timedelta(minutes=settings.OTP_CODE_EXPIRY_MINUTES)
+        LoginEmailOTP.objects.create(
+            user=user,
+            code=code,
+            expires_at=expires_at
+        )
+
+        try:
+            send_mail(
+                subject='Your MedConnect login code',
+                message=(
+                    f'Your MedConnect login code is: {code}\n\n'
+                    f'This code expires in {settings.OTP_CODE_EXPIRY_MINUTES} minutes. '
+                    'If you did not request it, you can ignore this email.'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except smtplib.SMTPException:
+            logger.exception("SMTP error while sending login code", extra={"user_id": user.id, "email": user.email})
+            return JsonResponse({
+                'success': False,
+                'message': 'Email service is not configured. Ask an admin to configure SMTP credentials.'
+            }, status=503)
+
+        cache.set(ip_limit_key, ip_count + 1, timeout=3600)
+        cache.set(email_limit_key, email_count + 1, timeout=3600)
+        logger.info("OTP login code sent", extra={"user_id": user.id, "email": user.email, "ip": client_ip})
+
+        return JsonResponse({
+            'success': True,
+            'message': 'If an account exists, a login code has been sent'
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_verify_login_code(request):
+    """Verify email login code and create authenticated session."""
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        code = (data.get('code') or '').strip()
+
+        if not email or not code:
+            return JsonResponse({
+                'success': False,
+                'message': 'Email and code are required'
+            }, status=400)
+
+        client_ip = _get_client_ip(request)
+        lockout_key = f"otp:verify:lock:{email}:{client_ip}"
+        attempts_key = f"otp:verify:attempts:{email}:{client_ip}"
+
+        if cache.get(lockout_key):
+            return JsonResponse({
+                'success': False,
+                'message': 'Too many failed attempts. Try again later.'
+            }, status=429)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            attempts = cache.get(attempts_key, 0) + 1
+            cache.set(attempts_key, attempts, timeout=3600)
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid email or code'
+            }, status=401)
+
+        otp = LoginEmailOTP.objects.filter(
+            user=user,
+            code=code,
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).first()
+
+        if not otp:
+            attempts = cache.get(attempts_key, 0) + 1
+            cache.set(attempts_key, attempts, timeout=3600)
+            if attempts >= settings.OTP_VERIFY_ATTEMPTS:
+                cache.set(lockout_key, True, timeout=settings.OTP_VERIFY_LOCKOUT_MINUTES * 60)
+                logger.warning("OTP verification lockout", extra={"email": email, "ip": client_ip})
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid or expired code'
+            }, status=401)
+
+        cache.delete(attempts_key)
+        cache.delete(lockout_key)
+
+        otp.is_used = True
+        otp.save(update_fields=['is_used'])
+
+        login(request, user)
+        logger.info("OTP login successful", extra={"user_id": user.id, "email": user.email, "ip": client_ip})
+
+        try:
+            user_data = _serialize_user_for_auth(user)
+            return JsonResponse({
+                'success': True,
+                'message': 'Login successful',
+                'user': user_data
+            })
+        except Profile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Profile not found'
+            }, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_request_password_reset_code(request):
+    """Send a one-time password reset code to a user's email."""
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        if not email:
+            return JsonResponse({'success': False, 'message': 'Email is required'}, status=400)
+
+        client_ip = _get_client_ip(request)
+        ip_limit_key = f"otp:pwdreset:req:ip:{client_ip}"
+        email_limit_key = f"otp:pwdreset:req:email:{email}"
+        ip_count = cache.get(ip_limit_key, 0)
+        email_count = cache.get(email_limit_key, 0)
+        if ip_count >= settings.OTP_REQUESTS_PER_HOUR or email_count >= settings.OTP_REQUESTS_PER_HOUR:
+            return JsonResponse({
+                'success': False,
+                'message': 'Too many code requests. Please try again later.'
+            }, status=429)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            # Avoid leaking which emails exist in the system.
+            cache.set(ip_limit_key, ip_count + 1, timeout=3600)
+            cache.set(email_limit_key, email_count + 1, timeout=3600)
+            return JsonResponse({
+                'success': True,
+                'message': 'If an account exists, a password reset code has been sent'
+            })
+
+        PasswordResetEmailOTP.objects.filter(user=user, is_used=False).update(is_used=True)
+        code = f"{random.randint(0, 999999):06d}"
+        expires_at = timezone.now() + timedelta(minutes=settings.OTP_CODE_EXPIRY_MINUTES)
+        PasswordResetEmailOTP.objects.create(user=user, code=code, expires_at=expires_at)
+
+        try:
+            send_mail(
+                subject='Your MedConnect password reset code',
+                message=(
+                    f'Your MedConnect password reset code is: {code}\n\n'
+                    f'This code expires in {settings.OTP_CODE_EXPIRY_MINUTES} minutes. '
+                    'If you did not request it, you can ignore this email.'
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[user.email],
+                fail_silently=False,
+            )
+        except smtplib.SMTPException:
+            logger.exception("SMTP error while sending password reset code", extra={"user_id": user.id, "email": user.email})
+            return JsonResponse({
+                'success': False,
+                'message': 'Email service is not configured. Ask an admin to configure SMTP credentials.'
+            }, status=503)
+
+        cache.set(ip_limit_key, ip_count + 1, timeout=3600)
+        cache.set(email_limit_key, email_count + 1, timeout=3600)
+        return JsonResponse({
+            'success': True,
+            'message': 'If an account exists, a password reset code has been sent'
+        })
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def api_reset_password(request):
+    """Verify password reset code and set a new password."""
+    try:
+        data = json.loads(request.body)
+        email = (data.get('email') or '').strip().lower()
+        code = (data.get('code') or '').strip()
+        new_password = data.get('new_password') or ''
+
+        if not email or not code or not new_password:
+            return JsonResponse({
+                'success': False,
+                'message': 'email, code, and new_password are required'
+            }, status=400)
+
+        try:
+            validate_password(new_password)
+        except ValidationError as ve:
+            return JsonResponse({
+                'success': False,
+                'message': 'Password does not meet requirements',
+                'errors': list(ve.messages)
+            }, status=400)
+
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Invalid email or code'}, status=401)
+
+        if not _validate_password_reset_code(user, code):
+            return JsonResponse({'success': False, 'message': 'Invalid or expired code'}, status=401)
+
+        user.set_password(new_password)
+        user.save(update_fields=['password'])
+
+        # Invalidate current session if the user was logged in
+        try:
+            logout(request)
+        except Exception:
+            pass
+
+        return JsonResponse({'success': True, 'message': 'Password reset successful'})
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'message': 'Invalid JSON data'}, status=400)
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': str(e)}, status=500)
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def api_register_patient(request):
@@ -2292,7 +2745,7 @@ def api_register_patient(request):
         data = json.loads(request.body)
         
         # Validate required fields
-        required_fields = ['username', 'email', 'password', 'first_name', 'last_name', 'date_of_birth', 'gender', 'cancer_type', 'phone_number']
+        required_fields = ['username', 'email', 'password', 'first_name', 'last_name', 'date_of_birth', 'gender', 'cancer_type', 'phone_number', 'verification_code']
         for field in required_fields:
             if not get_field(field):
                 return JsonResponse({
@@ -2313,6 +2766,12 @@ def api_register_patient(request):
                 'message': 'Email already exists'
             }, status=400)
         
+        if not _validate_signup_code(data['email'], data['verification_code']):
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid or expired verification code'
+            }, status=400)
+
         # Create user
         user = User.objects.create_user(
             username=data['username'],
@@ -2369,7 +2828,7 @@ def api_register_researcher(request):
         data = json.loads(request.body)
         
         # Validate required fields
-        required_fields = ['username', 'email', 'password', 'first_name', 'last_name', 'title', 'institution', 'specialization', 'phone_number']
+        required_fields = ['username', 'email', 'password', 'first_name', 'last_name', 'title', 'institution', 'specialization', 'phone_number', 'verification_code']
         for field in required_fields:
             if not get_field(field):
                 return JsonResponse({
@@ -2390,6 +2849,12 @@ def api_register_researcher(request):
                 'message': 'Email already exists'
             }, status=400)
         
+        if not _validate_signup_code(data['email'], data['verification_code']):
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid or expired verification code'
+            }, status=400)
+
         # Create user
         user = User.objects.create_user(
             username=data['username'],

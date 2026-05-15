@@ -29,6 +29,14 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({
   onDelete,
   mode
 }) => {
+  const toDateTimeLocal = (value: string) => {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return '';
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const [formData, setFormData] = useState<Appointment>({
     doctor_name: '',
     doctor_specialization: '',
@@ -45,7 +53,8 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({
       setFormData({
         doctor_name: appointment.doctor_name,
         doctor_specialization: appointment.doctor_specialization,
-        appointment_date: appointment.appointment_date,
+        // datetime-local expects "YYYY-MM-DDTHH:mm"
+        appointment_date: toDateTimeLocal(appointment.appointment_date),
         address: appointment.address,
         reason: appointment.reason,
         notes: appointment.notes

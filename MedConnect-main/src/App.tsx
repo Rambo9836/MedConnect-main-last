@@ -5,6 +5,7 @@ import { DataProvider } from './contexts/DataContext';
 import Header from './components/layout/Header';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
 import ProfilePage from './pages/ProfilePage';
@@ -19,10 +20,14 @@ function App() {
       <DataProvider>
         <Router>
           <div className="min-h-screen bg-gray-50">
+            <div className="bg-amber-100 border-b border-amber-300 px-4 py-2 text-center text-xs sm:text-sm text-amber-900">
+              Pilot Mode: Do not upload regulated medical records or direct patient identifiers.
+            </div>
             <Header />
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route
                 path="/dashboard"

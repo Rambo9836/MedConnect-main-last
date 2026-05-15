@@ -9,11 +9,66 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+INSTALLED_APPS = [
+    ...
+    "corsheaders",
+    ...
+]
 
+MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",  # MUST be at the top
+    "django.middleware.security.SecurityMiddleware",
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django.middleware.common.CommonMiddleware",
+    ...
+]
+
+# Allow your frontend origins
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",       # Vite dev server
+    "http://localhost:3000",       # CRA dev server
+    "https://yourdomain.com",      # Your GoDaddy domain (add later)
+    "https://www.yourdomain.com",
+]
+
+# For production security
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    ".onrender.com",              # Allows any Render subdomain
+    "yourdomain.com",
+    "www.yourdomain.com",
+]
 import os
 from pathlib import Path
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent
+
+
+def load_env_file(path: Path):
+    """Lightweight .env loader for local development."""
+    if not path.exists():
+        return
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        # Never overwrite values already provided by the environment.
+        os.environ.setdefault(key, value)
+
+
+# Local convenience: always load .env
+load_env_file(PROJECT_ROOT / ".env")
+
+# Load .env.prod automatically only inside containers.
+# On host dev machines, .env.prod often points POSTGRES_HOST=db (Docker DNS), which breaks runserver.
+if Path("/.dockerenv").exists():
+    load_env_file(PROJECT_ROOT / ".env.prod")
 
 
 # Quick-start development settings - unsuitable for production
@@ -37,7 +92,7 @@ SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-dev-key-change-me")
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool("DJANGO_DEBUG", True)
 
-ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1,.onrender.com")
 
 
 # Application definition
@@ -205,6 +260,29 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+# Email settings (used for OTP + password reset)
+#
+# Dev-friendly default:
+# - If SMTP creds are not configured, don't crash OTP flows: print emails to console.
+# Production:
+# - Set EMAIL_BACKEND=smtp and provide EMAIL_HOST_USER + EMAIL_HOST_PASSWORD.
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USE_TLS = env_bool("EMAIL_USE_TLS", True)
+EMAIL_HOST_USER = os.getenv("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER or "no-reply@medconnect.local")
+
+EMAIL_BACKEND = os.getenv("EMAIL_BACKEND", "").strip() or "django.core.mail.backends.smtp.EmailBackend"
+if DEBUG and (not EMAIL_HOST_USER or not EMAIL_HOST_PASSWORD):
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+# OTP login protection settings
+OTP_CODE_EXPIRY_MINUTES = int(os.getenv("OTP_CODE_EXPIRY_MINUTES", "10"))
+OTP_REQUESTS_PER_HOUR = int(os.getenv("OTP_REQUESTS_PER_HOUR", "50"))
+OTP_VERIFY_ATTEMPTS = int(os.getenv("OTP_VERIFY_ATTEMPTS", "5"))
+OTP_VERIFY_LOCKOUT_MINUTES = int(os.getenv("OTP_VERIFY_LOCKOUT_MINUTES", "15"))
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

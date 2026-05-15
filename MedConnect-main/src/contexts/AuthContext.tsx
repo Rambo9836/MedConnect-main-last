@@ -3,9 +3,13 @@ import { User, LoginCredentials, RegisterData } from '../types/auth';
 
 interface AuthContextType {
   user: User | null;
+  requestLoginCode: (email: string) => Promise<void>;
+  requestSignupCode: (email: string) => Promise<void>;
+  requestPasswordResetCode: (email: string) => Promise<void>;
+  resetPassword: (email: string, code: string, newPassword: string) => Promise<void>;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   isAuthenticated: boolean;
   loading: boolean;
@@ -24,9 +28,22 @@ function useAuth() {
 
 // Use React.memo for better Fast Refresh compatibility
 const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) => {
-  const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+  const API_BASE = (
+    import.meta.env.VITE_API_BASE_URL
+      || (import.meta.env.DEV ? `${window.location.protocol}//${window.location.hostname}:8000` : '')
+  ).replace(/\/+$/, '');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const parseJsonSafely = async (response: Response) => {
+    const text = await response.text();
+    if (!text) return {};
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Unexpected response from server (status ${response.status})`);
+    }
+  };
 
   useEffect(() => {
     // Check for stored user data on app load
@@ -61,26 +78,92 @@ const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) =>
     setLoading(false);
   }, []);
 
+  const requestLoginCode = async (email: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/api/login/request-code/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await parseJsonSafely(response);
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to send login code');
+    }
+  };
+
+  const requestSignupCode = async (email: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/api/register/request-code/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await parseJsonSafely(response);
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to send signup verification code');
+    }
+  };
+
+  const requestPasswordResetCode = async (email: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/api/password-reset/request-code/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email }),
+    });
+
+    const data = await parseJsonSafely(response);
+    if (!response.ok || !data.success) {
+      throw new Error(data.message || 'Failed to send password reset code');
+    }
+  };
+
+  const resetPassword = async (email: string, code: string, newPassword: string): Promise<void> => {
+    const response = await fetch(`${API_BASE}/api/password-reset/confirm/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ email, code, new_password: newPassword }),
+    });
+
+    const data = await parseJsonSafely(response);
+    if (!response.ok || !data.success) {
+      const msg = data.message || 'Password reset failed';
+      const details = Array.isArray(data.errors) && data.errors.length ? `: ${data.errors.join(' ')}` : '';
+      throw new Error(`${msg}${details}`);
+    }
+  };
+
   const login = async (credentials: LoginCredentials): Promise<void> => {
     setLoading(true);
     try {
-      console.log('Attempting login with:', { email: credentials.email, userType: credentials.userType });
+      console.log('Attempting OTP login with:', { email: credentials.email });
       
-      const response = await fetch(`${API_BASE}/api/login/`, {
+      const response = await fetch(`${API_BASE}/api/login/verify-code/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
         body: JSON.stringify({
-          username_or_email: credentials.email,
-          password: credentials.password
+          email: credentials.email,
+          code: credentials.code
         })
       });
 
       console.log('Login response status:', response.status);
       
-      const data = await response.json();
+      const data = await parseJsonSafely(response);
       console.log('Login response data:', data);
 
       if (!response.ok) {
@@ -176,6 +259,7 @@ const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) =>
         password: data.password,
         first_name: data.firstName,
         last_name: data.lastName,
+        verification_code: data.verificationCode,
       };
 
       if (data.userType === 'patient') {
@@ -213,7 +297,7 @@ const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) =>
 
       console.log('Registration response status:', response.status);
       
-      const result = await response.json();
+      const result = await parseJsonSafely(response);
       console.log('Registration response data:', result);
       
       if (!response.ok) {
@@ -252,13 +336,26 @@ const AuthProvider = React.memo(({ children }: { children: React.ReactNode }) =>
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('medconnect_user');
+  const logout = async (): Promise<void> => {
+    try {
+      await fetch(`${API_BASE}/api/logout/`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch {
+      // Best-effort: even if network fails, clear local auth state.
+    } finally {
+      setUser(null);
+      localStorage.removeItem('medconnect_user');
+    }
   };
 
   const value = {
     user,
+    requestLoginCode,
+    requestSignupCode,
+    requestPasswordResetCode,
+    resetPassword,
     login,
     register,
     logout,

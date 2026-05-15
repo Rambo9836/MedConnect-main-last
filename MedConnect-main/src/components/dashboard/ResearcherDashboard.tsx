@@ -10,6 +10,7 @@ const ResearcherDashboard: React.FC = () => {
     patientMatches, 
     createClinicalTrial,
     fetchStudyApplicants,
+    updateApplicantStatus,
     uploadStudyDocument,
     createStudyAppointment,
     sendContactRequest
@@ -90,7 +91,42 @@ const ResearcherDashboard: React.FC = () => {
   const handleViewApplicants = async (studyId: string) => {
     try {
       const applicants = await fetchStudyApplicants(studyId);
-      alert(`${applicants.length} applicants/participants for this study`);
+      if (applicants.length === 0) {
+        alert('No applicants yet for this study');
+        return;
+      }
+      
+      // Show applicants with action options
+      let message = `${applicants.length} applicants/participants:\n\n`;
+      applicants.forEach((a, index) => {
+        message += `${index + 1}. ${a.patientName} (ID: ${a.patientId}) - Status: ${a.status}\n`;
+      });
+      message += '\nEnter the number of the applicant you want to manage:';
+      
+      const choice = prompt(message);
+      if (!choice) return;
+      
+      const applicantIndex = parseInt(choice) - 1;
+      if (applicantIndex < 0 || applicantIndex >= applicants.length) {
+        alert('Invalid selection');
+        return;
+      }
+      
+      const applicant = applicants[applicantIndex];
+      const action = prompt(`Applicant: ${applicant.patientName}\nCurrent Status: ${applicant.status}\n\nEnter action:\n1. approve (for screening)\n2. enroll\n3. reject\n\nEnter 1, 2, or 3:`);
+      
+      if (action === '1') {
+        const success = await updateApplicantStatus(applicant.id, 'approve');
+        alert(success ? 'Applicant approved for screening! Patient will be notified.' : 'Failed to approve applicant');
+      } else if (action === '2') {
+        const success = await updateApplicantStatus(applicant.id, 'enroll');
+        alert(success ? 'Applicant enrolled! Patient will be notified.' : 'Failed to enroll applicant');
+      } else if (action === '3') {
+        const success = await updateApplicantStatus(applicant.id, 'reject');
+        alert(success ? 'Applicant rejected' : 'Failed to reject applicant');
+      } else {
+        alert('Invalid action');
+      }
     } catch (e) {
       console.error('Failed to fetch applicants', e);
       alert('Failed to load applicants');
@@ -111,12 +147,66 @@ const ResearcherDashboard: React.FC = () => {
   };
 
   const handleScheduleAppointment = async (studyId: string) => {
-    const patientId = prompt('Enter patient ID to schedule:');
-    if (!patientId) return;
-    const when = prompt('Enter appointment ISO date (e.g., 2025-01-31T10:00:00Z):');
-    if (!when) return;
-    const ok = await createStudyAppointment(studyId, { patient_id: patientId, appointment_date: when });
-    alert(ok ? 'Appointment created' : 'Failed to create appointment');
+    // First, get the list of applicants to help the researcher choose
+    try {
+      const applicants = await fetchStudyApplicants(studyId);
+      if (applicants.length === 0) {
+        alert('No applicants found for this study. Please ensure patients have applied first.');
+        return;
+      }
+      
+      // Show applicants list for reference
+      const applicantsList = applicants
+        .map(a => `ID: ${a.patientId} - ${a.patientName} (${a.status})`)
+        .join('\n');
+      
+      const patientId = prompt(`Available applicants:\n\n${applicantsList}\n\nEnter patient ID to schedule appointment:`);
+      if (!patientId) return;
+      
+      // Validate patient ID is in the applicants list
+      const validPatient = applicants.find(a => a.patientId === patientId);
+      if (!validPatient) {
+        alert('Invalid patient ID. Please select from the list above.');
+        return;
+      }
+      
+      // Get appointment details
+      const when = prompt('Enter appointment date and time (e.g., 2025-12-01T14:30:00Z):');
+      if (!when) return;
+      
+      // Validate date format
+      try {
+        new Date(when);
+      } catch (e) {
+        alert('Invalid date format. Please use format: 2025-12-01T14:30:00Z');
+        return;
+      }
+      
+      const doctorName = prompt('Enter doctor name (optional):') || '';
+      const doctorSpecialization = prompt('Enter doctor specialization (optional):') || '';
+      const address = prompt('Enter appointment address (optional):') || '';
+      const reason = prompt('Enter appointment reason (optional):') || '';
+      const notes = prompt('Enter additional notes (optional):') || '';
+      
+      const ok = await createStudyAppointment(studyId, { 
+        patient_id: patientId, 
+        appointment_date: when,
+        doctor_name: doctorName,
+        doctor_specialization: doctorSpecialization,
+        address: address,
+        reason: reason,
+        notes: notes
+      });
+      
+      if (ok) {
+        alert('Appointment created successfully! The patient will be notified.');
+      } else {
+        alert('Failed to create appointment. Please check the patient ID and try again.');
+      }
+    } catch (error) {
+      console.error('Error scheduling appointment:', error);
+      alert('Error scheduling appointment. Please try again.');
+    }
   };
 
   const handleRequestContact = async (patientId: string, patientName: string, condition?: string) => {

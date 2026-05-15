@@ -66,8 +66,7 @@ export interface PrivacySettings {
 
 export interface LoginCredentials {
   email: string;
-  password: string;
-  userType: 'patient' | 'researcher';
+  code: string;
 }
 
 export interface RegisterData {
@@ -87,4 +86,6 @@ export interface RegisterData {
   specialization?: string;
   licenseNumber?: string;
   phone: string;
+  acceptedPilotTerms?: boolean;
+  verificationCode?: string;
 }

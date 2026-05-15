@@ -27,8 +27,11 @@ const RegisterPage: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [acceptedPilotTerms, setAcceptedPilotTerms] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
   
-  const { register } = useAuth();
+  const { register, requestSignupCode } = useAuth();
   const navigate = useNavigate();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -59,7 +62,19 @@ const RegisterPage: React.FC = () => {
     setError('');
 
     try {
-      await register({ ...formData, userType });
+      if (!acceptedPilotTerms) {
+        throw new Error('You must accept the pilot data policy before creating an account.');
+      }
+      if (!codeSent) {
+        await requestSignupCode(formData.email);
+        setCodeSent(true);
+        setError('');
+        return;
+      }
+      if (!verificationCode.trim()) {
+        throw new Error('Please enter the verification code sent to your email.');
+      }
+      await register({ ...formData, userType, verificationCode });
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
@@ -350,6 +365,56 @@ const RegisterPage: React.FC = () => {
                   />
                 </div>
 
+                <label className="flex items-start space-x-2 bg-amber-50 border border-amber-200 rounded-md p-3">
+                  <input
+                    type="checkbox"
+                    checked={acceptedPilotTerms}
+                    onChange={(e) => setAcceptedPilotTerms(e.target.checked)}
+                    className="mt-1"
+                    required
+                  />
+                  <span className="text-sm text-amber-900">
+                    I understand this is a non-PHI pilot. I will not upload personal medical identifiers
+                    (full name + diagnosis documents, national ID numbers, hospital MRN, insurance numbers, or
+                    any raw clinical records containing identifying details).
+                  </span>
+                </label>
+
+                {codeSent && (
+                  <div>
+                    <label htmlFor="verificationCode" className="block text-sm font-medium text-gray-700">
+                      Email verification code
+                    </label>
+                    <input
+                      id="verificationCode"
+                      name="verificationCode"
+                      type="text"
+                      required
+                      maxLength={6}
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="mt-1 appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 text-gray-900 focus:outline-none focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm tracking-[0.3em]"
+                      placeholder="000000"
+                    />
+                    <button
+                      type="button"
+                      className="mt-2 text-sm text-emerald-600 hover:underline"
+                      onClick={async () => {
+                        setLoading(true);
+                        try {
+                          await requestSignupCode(formData.email);
+                        } catch (err: any) {
+                          setError(err.message || 'Failed to resend verification code.');
+                        } finally {
+                          setLoading(false);
+                        }
+                      }}
+                    >
+                      Resend code
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex space-x-4">
                   <button
                     type="button"
@@ -363,7 +428,7 @@ const RegisterPage: React.FC = () => {
                     disabled={loading}
                     className="flex-1 flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {loading ? 'Creating Account...' : 'Create Account'}
+                    {loading ? (codeSent ? 'Creating Account...' : 'Sending Code...') : (codeSent ? 'Create Account' : 'Send Verification Code')}
                   </button>
                 </div>
               </div>

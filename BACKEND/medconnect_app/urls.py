@@ -13,8 +13,13 @@ urlpatterns = [
 
     # API endpoints
     path('api/login/', api_views.api_login, name='api_login'),
+    path('api/login/request-code/', api_views.api_request_login_code, name='api_request_login_code'),
+    path('api/login/verify-code/', api_views.api_verify_login_code, name='api_verify_login_code'),
+    path('api/register/request-code/', api_views.api_request_signup_code, name='api_request_signup_code'),
     path('api/register/patient/', api_views.api_register_patient, name='api_register_patient'),
     path('api/register/researcher/', api_views.api_register_researcher, name='api_register_researcher'),
+    path('api/password-reset/request-code/', api_views.api_request_password_reset_code, name='api_request_password_reset_code'),
+    path('api/password-reset/confirm/', api_views.api_reset_password, name='api_reset_password'),
     path('api/logout/', api_views.api_logout, name='api_logout'),
     path('api/user/', api_views.api_user_info, name='api_user_info'),
     path('api/debug/users/', api_views.api_debug_users, name='api_debug_users'),
